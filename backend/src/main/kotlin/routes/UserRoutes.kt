@@ -59,20 +59,29 @@ fun Route.userRoutes(userService: UserService) {
 
         post("/forgot-password") {
             val request = call.receive<ForgotPasswordRequest>()
-            val code = userService.forgotPassword(request.email)
-            if (code != null) {
-                call.respond(mapOf("code" to code, "message" to "Code de réinitialisation généré"))
-            } else {
-                call.respond(HttpStatusCode.NotFound, "Aucun compte trouvé pour cet email")
+            try {
+                if (userService.forgotPassword(request.email)) {
+                    call.respond(mapOf("message" to "Un code de vérification a été envoyé à ${request.email}"))
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Aucun compte trouvé pour cet email."))
+                }
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Erreur lors de l'envoi de l'email. Réessayez plus tard."))
             }
         }
 
         post("/reset-password") {
             val request = call.receive<ResetPasswordRequest>()
-            if (userService.resetPassword(request.email, request.code, request.newPassword)) {
-                call.respond(mapOf("message" to "Mot de passe réinitialisé avec succès"))
-            } else {
-                call.respond(HttpStatusCode.BadRequest, "Code invalide ou expiré")
+            try {
+                if (userService.resetPassword(request.email, request.code, request.newPassword)) {
+                    call.respond(mapOf("message" to "Mot de passe réinitialisé avec succès !"))
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Code invalide ou expiré. Demandez un nouveau code."))
+                }
+            } catch (e: IllegalArgumentException) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Mot de passe invalide.")))
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Erreur serveur. Réessayez."))
             }
         }
 

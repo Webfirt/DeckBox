@@ -144,7 +144,7 @@ class JvmBackendApiService : BackendApiService {
       }
     }
 
-  override suspend fun forgotPassword(email: String): Result<String> =
+  override suspend fun forgotPassword(email: String): Result<Unit> =
     withContext(Dispatchers.IO) {
       runCatching {
         val body = """{"email":"$email"}"""
@@ -155,10 +155,11 @@ class JvmBackendApiService : BackendApiService {
           .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() != 200) {
-          error(response.body().ifBlank { "Email introuvable" })
+          val msg = runCatching {
+            json.parseToJsonElement(response.body()).jsonObject["error"]?.jsonPrimitive?.content
+          }.getOrNull() ?: "Aucun compte trouvé pour cet email."
+          error(msg)
         }
-        val resp = json.parseToJsonElement(response.body()).jsonObject
-        resp["code"]!!.jsonPrimitive.content
       }
     }
 
@@ -173,9 +174,11 @@ class JvmBackendApiService : BackendApiService {
           .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() != 200) {
-          error(response.body().ifBlank { "Code invalide ou expiré" })
+          val msg = runCatching {
+            json.parseToJsonElement(response.body()).jsonObject["error"]?.jsonPrimitive?.content
+          }.getOrNull() ?: "Code invalide ou expiré."
+          error(msg)
         }
-        Unit
       }
     }
 }

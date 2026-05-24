@@ -87,22 +87,43 @@ class UserService {
         }
     }
 
-    fun forgotPassword(email: String): String? {
-        return transaction {
-            val user = Users.select { Users.email eq email }.singleOrNull() ?: return@transaction null
-            val code = Random.nextInt(100000, 999999).toString()
-            val expiresAt = System.currentTimeMillis() + 15 * 60 * 1000L // 15 min
+    fun forgotPassword(email: String): Boolean {
+        // Vérifier que l'email existe
+        val userExists = transaction {
+            Users.select { Users.email eq email }.count() > 0L
+        }
+        if (!userExists) return false
+
+        // Générer et sauvegarder le code
+        val code = Random.nextInt(100000, 999999).toString()
+        val expiresAt = System.currentTimeMillis() + 15 * 60 * 1000L // 15 min
+
+        transaction {
             PasswordResets.deleteWhere { PasswordResets.email eq email }
             PasswordResets.insert {
                 it[PasswordResets.email] = email
                 it[PasswordResets.code] = code
                 it[PasswordResets.expiresAt] = expiresAt
             }
-            code
         }
+
+        // Envoyer l'email (hors transaction)
+        EmailService.sendPasswordResetCode(email, code)
+        return true
     }
 
     fun resetPassword(email: String, code: String, newPassword: String): Boolean {
+        // Validation de la force du mot de passe
+        if (newPassword.length < 8) {
+            throw IllegalArgumentException("Le mot de passe doit contenir au moins 8 caractères.")
+        }
+        if (!newPassword.any { it.isLetter() }) {
+            throw IllegalArgumentException("Le mot de passe doit contenir au moins une lettre (ex: a-z, A-Z).")
+        }
+        if (!newPassword.any { it.isDigit() }) {
+            throw IllegalArgumentException("Le mot de passe doit contenir au moins un chiffre (ex: 0-9).")
+        }
+
         return transaction {
             val now = System.currentTimeMillis()
             val reset = PasswordResets.select {
@@ -110,6 +131,7 @@ class UserService {
                     (PasswordResets.code eq code) and
                     (PasswordResets.expiresAt greater now)
             }.singleOrNull() ?: return@transaction false
+
             val newHash = BCrypt.withDefaults().hashToString(12, newPassword.toCharArray())
             Users.update({ Users.email eq email }) {
                 it[passwordHash] = newHash
