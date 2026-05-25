@@ -92,6 +92,21 @@ data class BrowseScreen(
 }
 
 @CommonParcelize
+class BattleScreen : DeckBoxScreen(name = "Battle()")
+
+@CommonParcelize
+class CollectionScreen : DeckBoxScreen(name = "Collection()")
+
+@CommonParcelize
+class ShopScreen : DeckBoxScreen(name = "Shop()")
+
+@CommonParcelize
+class ProfileScreen : DeckBoxScreen(name = "Profile()")
+
+@CommonParcelize
+class FriendsScreen : OverlayDeckBoxScreen<Unit>(name = "Friends()")
+
+@CommonParcelize
 class ExpansionsScreen : DeckBoxScreen(name = "Expansions()")
 
 @CommonParcelize
@@ -241,7 +256,45 @@ class DeckTextImporterScreen : ImportScreen(name = "DeckTextImporter()") {
 }
 
 @CommonParcelize
+data class MatchmakingScreen(
+  val deckId: String,
+) : DeckBoxScreen(name = "Matchmaking()") {
+  override val arguments get() = mapOf("deckId" to deckId)
+
+  @CommonIgnoredOnParcel
+  override val presentation = Presentation(hideBottomNav = true)
+}
+
+@CommonParcelize
+data class OnlineBattleScreen(
+  val battleId: String,
+) : DeckBoxScreen(name = "OnlineBattle()") {
+  override val arguments get() = mapOf("battleId" to battleId)
+
+  @CommonIgnoredOnParcel
+  override val presentation = Presentation(hideBottomNav = true)
+}
+
+@CommonParcelize
 class SettingsScreen : DeckBoxScreen(name = "Settings()")
+
+@CommonParcelize
+class LoginScreen : DeckBoxScreen(name = "Login()") {
+  @CommonIgnoredOnParcel
+  override val presentation = Presentation(hideBottomNav = true)
+}
+
+@CommonParcelize
+class RegisterScreen : DeckBoxScreen(name = "Register()") {
+  @CommonIgnoredOnParcel
+  override val presentation = Presentation(hideBottomNav = true)
+}
+
+@CommonParcelize
+class ForgotPasswordScreen : DeckBoxScreen(name = "ForgotPassword()") {
+  @CommonIgnoredOnParcel
+  override val presentation = Presentation(hideBottomNav = true)
+}
 
 //region Utility Screens
 

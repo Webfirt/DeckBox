@@ -1,5 +1,7 @@
 package app.deckbox.shared.auth
 
+import kotlinx.coroutines.flow.Flow
+
 interface BackendApiService {
   suspend fun login(username: String, password: String): Result<LoginData>
   suspend fun register(username: String, email: String, password: String): Result<UserData>
@@ -9,7 +11,18 @@ interface BackendApiService {
   suspend fun sendFriendRequest(token: String, toUsername: String): Result<Unit>
   suspend fun forgotPassword(email: String): Result<Unit>
   suspend fun resetPassword(email: String, code: String, newPassword: String): Result<Unit>
+
+  // ── Online Battle ──
+  suspend fun matchmake(token: String): Result<MatchmakeResult>
+  fun openBattleSocket(battleId: String, token: String): Flow<String>
+  suspend fun sendBattleAction(json: String)
+  fun closeBattleSocket()
 }
+
+data class MatchmakeResult(
+  val battleId: String?,
+  val isWaiting: Boolean,
+)
 
 data class LoginData(
   val token: String,

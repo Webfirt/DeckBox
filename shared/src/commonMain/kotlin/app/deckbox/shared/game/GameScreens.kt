@@ -70,6 +70,7 @@ import app.deckbox.common.screens.DeckPickerScreen
 import app.deckbox.common.screens.DecksScreen
 import app.deckbox.common.screens.FriendsScreen
 import app.deckbox.common.screens.LoginScreen
+import app.deckbox.common.screens.MatchmakingScreen
 import app.deckbox.common.screens.PlayTestScreen
 import app.deckbox.common.screens.ProfileScreen
 import app.deckbox.common.screens.SettingsScreen
@@ -341,7 +342,7 @@ class BattlePresenter(
       leaderboard = leaderboard,
       eventSink = { event ->
         when (event) {
-          is BattleUiEvent.StartMatch -> navigator.goTo(PlayTestScreen(event.deckId))
+          is BattleUiEvent.StartMatch -> navigator.goTo(MatchmakingScreen(event.deckId))
           BattleUiEvent.ChallengeFriend -> navigator.goTo(FriendsScreen())
           BattleUiEvent.CreateDeck -> navigator.goTo(DecksScreen())
           BattleUiEvent.OpenSettings -> navigator.goTo(SettingsScreen())

@@ -1,6 +1,10 @@
 package app.deckbox.shared.auth
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.boolean
@@ -12,11 +16,15 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.WebSocket as JavaWebSocket
+import java.util.concurrent.CompletionStage
 
 class JvmBackendApiService : BackendApiService {
 
   private val httpClient = HttpClient.newHttpClient()
   private val json = Json { ignoreUnknownKeys = true }
+
+  @Volatile private var currentWs: JavaWebSocket? = null
 
   companion object {
     const val BASE_URL = "http://localhost:8080"
@@ -181,4 +189,74 @@ class JvmBackendApiService : BackendApiService {
         }
       }
     }
+
+  // ── Online Battle ──────────────────────────────────────────────────────────
+
+  override suspend fun matchmake(token: String): Result<MatchmakeResult> =
+    withContext(Dispatchers.IO) {
+      runCatching {
+        val request = HttpRequest.newBuilder()
+          .uri(URI.create("$BASE_URL/battles/matchmake"))
+          .header("Authorization", "Bearer $token")
+          .header("Content-Type", "application/json")
+          .POST(HttpRequest.BodyPublishers.ofString("{}"))
+          .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        val body = runCatching { json.parseToJsonElement(response.body()).jsonObject }.getOrNull()
+        when (response.statusCode()) {
+          200 -> {
+            val battleId = body?.get("id")?.jsonPrimitive?.content
+              ?: error("Battle ID manquant dans la réponse")
+            MatchmakeResult(battleId = battleId, isWaiting = false)
+          }
+          202 -> MatchmakeResult(battleId = null, isWaiting = true)
+          else -> error("Matchmaking échoué (${response.statusCode()})")
+        }
+      }
+    }
+
+  override fun openBattleSocket(battleId: String, token: String): Flow<String> = callbackFlow {
+    val listener = object : JavaWebSocket.Listener {
+      override fun onOpen(ws: JavaWebSocket) {
+        ws.request(1)
+      }
+      override fun onText(ws: JavaWebSocket, data: CharSequence, last: Boolean): CompletionStage<*>? {
+        trySend(data.toString())
+        ws.request(1)
+        return null
+      }
+      override fun onClose(ws: JavaWebSocket, statusCode: Int, reason: String): CompletionStage<*>? {
+        close()
+        return null
+      }
+      override fun onError(ws: JavaWebSocket, error: Throwable) {
+        close(error)
+      }
+    }
+
+    val ws = runCatching {
+      httpClient.newWebSocketBuilder()
+        .buildAsync(URI.create("ws://localhost:8080/battles/battle/$battleId?token=$token"), listener)
+        .get()
+    }.getOrElse { e ->
+      close(e)
+      return@callbackFlow
+    }
+    currentWs = ws
+
+    awaitClose {
+      runCatching { ws.abort() }
+      currentWs = null
+    }
+  }.flowOn(Dispatchers.IO)
+
+  override suspend fun sendBattleAction(json: String) = withContext(Dispatchers.IO) {
+    runCatching { currentWs?.sendText(json, true) }
+    Unit
+  }
+
+  override fun closeBattleSocket() {
+    runCatching { currentWs?.abort() }
+    currentWs = null
+  }
 }
